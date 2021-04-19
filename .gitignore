@@ -3,6 +3,8 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,jupyternotebooks,pycharm+all,windows,macos,data
 
 Data
+*.rar
+*.zip
 
 ### Data ###
 *.csv
