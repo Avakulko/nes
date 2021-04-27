@@ -1,14 +1,17 @@
-import random
 import numpy as np
+from time import time
 
+def MC(params, S, strike, tau, r, nsim=1000):
 
-def MC(params, S_0, K, T, r):
+    feller_condition = 2 * params[1] * params[2] - params[3] ** 2
+    if feller_condition < 0:
+        raise Exception(f'Feller condition = {round(feller_condition, 3)} is not satisfied')
+
     # Montecarlo simulation
-    random.seed(5000)  # Set the random seed
-    N = 1000  # Number of small sub-steps (time)
-    n = 100000  # Number of Monte carlo paths
+    # np.random.seed(42)  # Set the random seed
+    N = 20000  # Number of small sub-steps (time)
 
-    dt = T / N  # No. of Time step
+    dt = tau / N  # No. of Time step
 
     # Parameters for Heston process
     V_0 = params[0] ** 1  # Initial variance is square of volatility
@@ -19,14 +22,14 @@ def MC(params, S_0, K, T, r):
     rho = params[4]  # Correlation
 
     # Integrate equations: Euler method, Montecarlo vectorized
-    V_t = np.ones(n) * V_0
-    S_t = np.ones(n) * S_0
+    V_t = np.ones(nsim) * V_0
+    S_t = np.ones(nsim) * S
 
     # # Generate Montecarlo paths
     # for t in range(1, N):
     #     # Random numbers for S_t and V_t
-    #     Z_s = np.random.normal(size=n)
-    #     Z_v = rho * Z_s + np.sqrt(1 - rho ** 2) * np.random.normal(size=n)
+    #     Z_s = np.random.normal(size=nsim)
+    #     Z_v = rho * Z_s + np.sqrt(1 - rho ** 2) * np.random.normal(size=nsim)
     #
     #     # Euler integration
     #     V_t = np.maximum(V_t, 0)
@@ -36,24 +39,44 @@ def MC(params, S_0, K, T, r):
     # Generate Montecarlo paths
     for t in range(1, N):
         # Random numbers for S_t and V_t
-        Z_s = np.random.normal(size=n)
-        Z_v = rho * Z_s + np.sqrt(1 - rho ** 2) * np.random.normal(size=n)
+        Z_s = np.random.normal(size=nsim)
+        Z_v = rho * Z_s + np.sqrt(1 - rho ** 2) * np.random.normal(size=nsim)
 
         # Euler integration
         V_t = np.maximum(V_t, 0)
-        S_t = S_t + r * S_t * dt + S_t * np.sqrt(V_t * dt) * Z_s
-        V_t = V_t + kappa * (theta - V_t) * dt + epsilon * np.sqrt(V_t * dt) * Z_v  # Volatility process
+        S_t *= 1 + r * dt + np.sqrt(V_t * dt) * Z_s
+        V_t += kappa * (theta - V_t) * dt + epsilon * np.sqrt(V_t * dt) * Z_v  # Volatility process
 
-    option_price = np.mean(np.exp(-r * T) * np.maximum(S_t - K, 0))
+    # # Generate Montecarlo paths
+    # # Random numbers for S_t and V_t
+    # Z_s = np.random.normal(size=(nsim, N))
+    # Z_v = rho * Z_s + np.sqrt(1 - rho ** 2) * np.random.normal(size=(nsim, N))
+    #
+    # # Euler integration
+    # V_t = np.maximum(V_t, 0)
+    # S_t = S_t + r * S_t * dt + S_t * np.sqrt(V_t * dt) * Z_s
+    # V_t = V_t + kappa * (theta - V_t) * dt + epsilon * np.sqrt(V_t * dt) * Z_v  # Volatility process
+
+    option_price = np.exp(-r * tau) * np.mean(np.maximum(S_t - strike, 0))
 
     return option_price
 
 if __name__ == '__main__':
-    sigma_t = 0.41  # Variance
-    k = 2.08
-    theta = np.sqrt(0.93) ** 2
-    nu = 2.36
-    rho = -0.09
+    S = 400
+    strike = 250
+    r = 0.03
+    tau = 0.50137
+
+    sigma_t = 0.1197  # Variance
+    k = 1.98937
+    theta = 0.3 ** 2
+    nu = 0.33147
+    rho = -0.45648749
+
     params = [sigma_t, k, theta, nu, rho]
-    S_0, K, T, r = 9847.744, 18000, 0.12586375889776902, 0.0152
-    print(MC(params, S_0, K, T, r))
+    S, strike, tau, r = 9847.744, 18000, 0.12586375889776902, 0.0152
+
+
+    nsim = 1000  # Number of Monte carlo paths
+    start = time()
+    print(MC(params, S, strike, tau, r, nsim=nsim), f' in {time() - start} seconds')

@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 
+import os
+os.chdir('/Users/a17072452/Documents/GitHub/nes')
+
 # timestamp: ms passed from epoch
 # price: option on 1 BTC price in BTC
 # instrument_name: BTC-17FEB17-975-C
@@ -22,7 +25,7 @@ import numpy as np
 # C_market: рыночная стоимость колл-опциона на 1 BTC выраженная в USD
 
 df = pd.read_csv('Data/Deribit_w_IV.csv')
-
+print(df.info())
 # некоторые iv_tbill имеют значение .
 df = df[df['iv_Tbill'] != '.']
 df['iv_Tbill'] = df['iv_Tbill'].astype(np.float64)

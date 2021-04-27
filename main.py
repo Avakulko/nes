@@ -4,6 +4,10 @@ from Heston import C_Heston
 from HestonMC import MC
 from HestonCalibration import calibrate
 from datetime import datetime
+import os
+
+os.chdir('/Users/a17072452/Documents/GitHub/nes')
+
 
 def write_log():
     summary = {'fun': res.fun,
@@ -19,40 +23,51 @@ def write_log():
     # feller, obj_func, move to calibration
     log = pd.DataFrame(summary)
 
-    with open(filename, 'a') as f:
+    with open('Out/log.csv', 'a') as f:
         log.to_csv(f, header=f.tell() == 0, index=False)
 
 
 if __name__ == '__main__':
     data = pd.read_csv('Data/data.csv')
-    filename = 'Out/log.csv'
-
 
     data.date = pd.to_datetime(data.date)
     dates = data.date.unique()
-    t = dates[500]
-    data = data[data.date < t]
+    t = dates[-1]
+    data = data[data.date <= t]
     # data = data[data.type == 'call']
+
+    index_price = data['index_price']
+    strike = data['strike']
+    tt = data['tt']
+    irate = data['irate']
+    C_market = data['C_market']
 
     # method = 'dif_ev'
     method = 'shgo'
-    weights = True
+    weights = False
 
-    res, calibration_time = calibrate(data, method=method, weights=weights)
+    if weights:
+        w = data['amount']**2
+    else:
+        w = 1.0
+
+    res, calibration_time = calibrate(index_price,
+                                      strike,
+                                      tt,
+                                      irate,
+                                      C_market,
+                                      method=method,
+                                      weights=w)
     params = res.x
 
+    data['C_Heston_opt'] = C_Heston(params,
+                                    index_price,
+                                    strike,
+                                    tt,
+                                    irate)
 
-
-    data['C_Heston_opt'] = data.apply(lambda x: C_Heston(params, x['index_price'], x['strike'], x['tt'], x['irate']),
-                                      axis=1)
     write_log()
-    # mc = list()
-    # for i in range(len(data)):
-    #     print(i / len(data) * 100)
-    #     mc.append(
-    #         MC(params, data.iloc[i]['index_price'], data.iloc[i]['strike'], data.iloc[i]['tt'],
-    #            data.iloc[i]['irate']))
-    # data['MC'] = mc
 
-    data.to_csv('Out/output.csv', index=False)
+    with open('Out/output.csv', 'w') as f:
+        data.to_csv(f, index=False)
     pass

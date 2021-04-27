@@ -1,6 +1,7 @@
 from scipy.optimize import minimize, shgo, differential_evolution, NonlinearConstraint
 import numpy as np
 from Heston import C_Heston
+from forecasting_metrics import mape
 import time
 
 
@@ -9,38 +10,34 @@ def n(params):
 
 
 def feller_condition(params):
-    # nu^2 - 2 k Theta < 0 => condition is satisfied
+    # 2 k Theta - nu^2 >= 0 => condition is satisfied
     return 2 * params[1] * params[2] - params[3] ** 2  # >=0
 
 
-def obj_function(params, data, weights):
-    print('busy...')
-    errors = weights * (
-            data.apply(lambda x: C_Heston(params, x['index_price'], x['strike'], x['tt'], x['irate']), axis=1) -
-            data['C_market']) #/ data['C_market']
-    errors = np.array(errors)
-
-    return np.sqrt(np.sum(errors ** 2))
+def obj_function(params, index_price, strike, tt, irate, C_market, weights):
+    # errors = weights * (C_Heston(params, index_price, strike, tt, irate) - C_market)
+    # return np.sqrt(np.sum(errors ** 2))
+    return mape(C_market, C_Heston(params, index_price, strike, tt, irate))
 
 def callback(xk):
-    print(f'feller: {round(feller_condition(xk), 5)} sigma_t: {round(xk[0], 5)} k: {round(xk[1], 5)} theta: {round(xk[2], 5)} nu: {round(xk[3], 5)} rho: {round(xk[4], 5)}')
-    # return
+    print(
+        f'|| {feller_condition(xk):^+10.3f} | {xk[0]:^+10.3f} | {xk[1]:^+10.3f} | {xk[2]:^+10.3f} | {xk[3]:^+10.3f} | {xk[4]:^+10.3f} ||')
 
-def calibrate(data, method, weights):
-    if weights:
-        weights = data['amount']
-    else:
-        weights = 1
 
-    bounds = [(0.0001, 20), (0.0001, 20), (0.0001, 20), (0.0001, 20), (-1, 1)]
-    constraint = NonlinearConstraint(feller_condition, 0, np.inf)
-    args = (data, weights)
+def calibrate(index_price, strike, tt, irate, C_market, method, weights=1.0):
+    bounds = [(0.0001, 20.0), (0.0001, 20.0), (0.0001, 20.0), (0.0001, 20.0), (-1.0, 1.0)]
+    print(f"|| {'feller':^10} | {'sigma_t':^10} | {'k':^10} | {'theta':^10} | {'nu':^10} | {'rho':^10} ||")
+
+    args = (index_price, strike, tt, irate, C_market, weights)
+
     start = time.time()
     if method == 'dif_ev':
+        constraint = NonlinearConstraint(feller_condition, 0.0, np.inf)
         res = differential_evolution(func=obj_function,
                                      args=args,
                                      bounds=bounds,
-                                     constraints=constraint)
+                                     constraints=constraint,
+                                     workers=-1)
 
     if method == 'shgo':
         constraint = {'type': 'ineq',
@@ -49,11 +46,12 @@ def calibrate(data, method, weights):
                    args=args,
                    bounds=bounds,
                    constraints=constraint,
-                   callback=callback
+                   callback=callback,
+                   options={'disp': True}
                    )
 
-
     calibration_time = time.time() - start
+    print(f"|| {'feller':^10} | {'sigma_t':^10} | {'k':^10} | {'theta':^10} | {'nu':^10} | {'rho':^10} ||")
     print(f'Calibration finished in {calibration_time} seconds')
 
     return res, calibration_time
