@@ -1,34 +1,11 @@
-import numpy as np
-np.random.seed(42)
-
-from time import time
-import pandas as pd
-from Heston import C_Heston, fHes
-from HestonMC import MC
-from HestonCalibration import calibrate
-from datetime import datetime
 import os
+import numpy as np
+import pandas as pd
+from StochVol.HestonCalibration import calibrate_Heston
+from JumpDiffusion.MertonCalibration import calibrate_Merton
 
+np.random.seed(42)
 os.chdir('/Users/a17072452/Documents/GitHub/nes')
-
-
-def write_log():
-    summary = {'fun': res.fun,
-               'params': [params],
-               'success': res.success,
-               'calibr. time': round(calibration_time, 0),
-               'time': datetime.now(),
-               'method': method,
-               't': pd.to_datetime(t).date(),
-               'weights': weights,
-               'message': res.message
-               }
-    # feller, obj_func, move to calibration
-    log = pd.DataFrame(summary)
-
-    with open('Out/log.csv', 'a') as f:
-        log.to_csv(f, header=f.tell() == 0, index=False)
-
 
 if __name__ == '__main__':
     data = pd.read_csv('Data/data.csv')
@@ -39,18 +16,13 @@ if __name__ == '__main__':
     # data = data[data.date <= t]
     # data = data[data.type == 'call']
 
-    t = dates[0]
+    t = dates[700]
     data = data[data.date == t]
+    data = data[data['tt'] > 0.1]
+    data = data.groupby(['strike', 'time_expire'])[['strike', 'tt', 'index_price', 'irate', 'C_market']].mean()
+    data['irate'] = np.mean(data['irate'])
+    data['index_price'] = np.mean(data['index_price'])
 
-    index_price = data['index_price']
-    strike = data['strike']
-    tt = data['tt']
-    irate = data['irate']
-    C_market = data['C_market']
-
-    # method = 'dif_ev'
-    # method = 'shgo'
-    method = 'local'
     weights = False
 
     if weights:
@@ -58,27 +30,20 @@ if __name__ == '__main__':
     else:
         w = 1.0
 
-    res, calibration_time = calibrate(index_price,
-                                      strike,
-                                      tt,
-                                      irate,
-                                      C_market,
-                                      method=method,
-                                      weights=w)
-    params = res.x
+    calibrate_Heston(data, weights)
+    calibrate_Merton(data, weights)
 
-    data['C_Heston_opt'] = C_Heston(params,
-                                    index_price,
-                                    strike,
-                                    tt,
-                                    irate)
-    data['fHes_opt'] = fHes(params,
-                                    index_price,
-                                    strike,
-                                    tt,
-                                    irate)
+    # data['C_Heston_opt'] = C_Heston(params,
+    #                                 index_price,
+    #                                 strike,
+    #                                 tt,
+    #                                 irate)
 
-
+    # data['CMerton_opt'] = merton_jump_call(params,
+    #                                        index_price,
+    #                                        strike,
+    #                                        tt,
+    #                                        irate)
 
     # start = time()
     # mc_list = list()
@@ -94,9 +59,7 @@ if __name__ == '__main__':
     # data['MC'] = mc_list
     # print(f'MC time {time() - start}')
 
-
-
-    write_log()
+    # print(f"{mape(data['C_market'], data['fHes_opt'])}")
 
     with open('Out/output.csv', 'w') as f:
         data.to_csv(f, index=False)
