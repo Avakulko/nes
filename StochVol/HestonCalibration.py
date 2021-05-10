@@ -19,7 +19,7 @@ def write_log(res):
                # 'message': res.message
                }
     # feller
-    with open('/Users/a17072452/Documents/GitHub/nes/Out/log_Heston.csv', 'a') as f:
+    with open('Out/log_Heston.csv', 'a') as f:
         pd.DataFrame(summary).to_csv(f, header=f.tell() == 0, index=False)
 
 
@@ -46,7 +46,7 @@ def calibrate_Heston(data, weights):
     tt = np.array(data['tt'])
     irate = np.array(data['irate'])
     C_market = np.array(data['C_market'])
-    options_params = (index_price, strike, tt, irate, C_market, weights)
+    args = (index_price, strike, tt, irate, C_market, weights)
 
     start = time.time()
 
@@ -61,7 +61,7 @@ def calibrate_Heston(data, weights):
                             jac=JacHes,
                             # bounds=[(0.0, 0.0, 0.0, 0.0, -1.0), (10.0, 10.0, 10.0, 10.0, 1.0)],
                             x0=x0,
-                            args=options_params,
+                            args=args,
                             verbose=2,
                             method='lm')
         if res.cost < cost_min:
@@ -72,6 +72,7 @@ def calibrate_Heston(data, weights):
     print(f'Calibration finished in {time.time() - start} seconds')
 
     data['fHes_opt'] = fHes(res_opt.x, index_price, strike, tt, irate)
+    # data['C_Heston_opt'] = C_Heston(res_opt.x, index_price, strike, tt, irate)
     write_log(res_opt)
 
     return res_opt

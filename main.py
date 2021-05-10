@@ -12,16 +12,17 @@ if __name__ == '__main__':
 
     data.date = pd.to_datetime(data.date)
     dates = data.date.unique()
-    # t = dates[20]
-    # data = data[data.date <= t]
     # data = data[data.type == 'call']
 
     t = dates[700]
     data = data[data.date == t]
-    data = data[data['tt'] > 0.1]
-    data = data.groupby(['strike', 'time_expire'])[['strike', 'tt', 'index_price', 'irate', 'C_market']].mean()
     data['irate'] = np.mean(data['irate'])
     data['index_price'] = np.mean(data['index_price'])
+    data = data[(data['index_price'] / data['strike'] < 1.5) & (data['index_price'] / data['strike'] > 0.5)]
+    data = data[data['tt'] > 0.1]
+    data = data.groupby(['strike', 'time_expire']).mean()
+    data = data.reset_index()
+    # data = data[['strike', 'tt', 'index_price', 'irate', 'C_market']]
 
     weights = False
 
@@ -30,20 +31,8 @@ if __name__ == '__main__':
     else:
         w = 1.0
 
-    calibrate_Heston(data, weights)
+    # calibrate_Heston(data, weights)
     calibrate_Merton(data, weights)
-
-    # data['C_Heston_opt'] = C_Heston(params,
-    #                                 index_price,
-    #                                 strike,
-    #                                 tt,
-    #                                 irate)
-
-    # data['CMerton_opt'] = merton_jump_call(params,
-    #                                        index_price,
-    #                                        strike,
-    #                                        tt,
-    #                                        irate)
 
     # start = time()
     # mc_list = list()
