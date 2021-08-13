@@ -1,14 +1,11 @@
 import numpy as np
 from time import time
 
-def MC(params, S, strike, tau, r, nsim=10000, N=5000):
-
-    # feller_condition = 2 * params[1] * params[2] - params[3] ** 2
-    # if feller_condition < 0:
-    #     raise Exception(f'Feller condition = {round(feller_condition, 3)} is not satisfied')
+def MC(params, S, nsim=1000, N=24*60):
+    # , S, strike, tau, r,
 
     # N - Number of small sub-steps (time)
-    dt = tau / N  # No. of Time step
+    dt = 1 / 365 / 24 / 60  # 1 min time step
     
     # Parameters for Heston process
     # V_0 - Initial variance is square of volatility
@@ -20,12 +17,12 @@ def MC(params, S, strike, tau, r, nsim=10000, N=5000):
     # Parameters for Heston process
     V_0, k, theta, nu, rho = params  # Initial variance is square of volatility
 
-    # Integrate equations: Euler method, Monte-Carlo vectorized
-    V_t = np.ones(nsim) * V_0
-    S_t = np.ones(nsim) * S
-    
-    # antiV_t = np.ones(nsim) * V_0
-    # antiS_t = np.ones(nsim) * S
+    V_t = np.ones((N, nsim))
+    S_t = np.ones((N, nsim))
+
+    V_t[0, :] *= V_0
+    S_t[0, :] *= S
+
 
     # Generate Monte-Carlo paths
     for t in range(1, N):
@@ -34,20 +31,14 @@ def MC(params, S, strike, tau, r, nsim=10000, N=5000):
         Z_v = rho * Z_s + np.sqrt(1 - rho ** 2) * np.random.normal(size=nsim)
 
         # Euler integration
-        V_t = np.maximum(V_t, 0)
-        S_t *= 1 + r * dt + np.sqrt(V_t * dt) * Z_s
-        V_t += k * (theta - V_t) * dt + nu * np.sqrt(V_t * dt) * Z_v  # Volatility process
-        # E-M variance
-        # V_t += k*(theta-V_t)*dt + nu*np.sqrt(V_t*dt)*Z_v + 1/4*nu**2*(Z_v**2-1)*dt
+        V_t[t-1, :] = np.maximum(V_t[t-1, :], 0)
+        S_t[t, :] = S_t[t-1, :] * (1 + r * dt + np.sqrt(V_t[t-1, :] * dt) * Z_s)
+        # S_t[t, :] = S_t[t-1, :] * np.exp(np.sqrt(V_t[t-1, :] * dt) * Z_s - V_t[t-1, :] * dt / 2)
+        V_t[t, :] = V_t[t-1, :] + k * (theta - V_t[t-1, :]) * dt + nu * np.sqrt(V_t[t-1, :] * dt) * Z_v  # Volatility process
 
-        # antiV_t = np.maximum(antiV_t, 0)
-        # antiS_t *= 1 + r * dt + np.sqrt(antiV_t * dt) * Z_s
-        # antiV_t += k * (theta - antiV_t) * dt - nu * np.sqrt(antiV_t * dt) * Z_v
-    #
-    # S_t = 0.5 * (S_t + antiS_t)
-    option_price = np.exp(-r * tau) * np.mean(np.maximum(S_t - strike, 0))
+    # option_price = np.exp(-r * tau) * np.mean(np.maximum(S_t - strike, 0))
 
-    return option_price
+    return S_t, V_t
 
 if __name__ == '__main__':
     np.random.seed(42)
@@ -59,4 +50,9 @@ if __name__ == '__main__':
     S, strike, tau, r = 4299.68, 5750, 0.0201548679921377, 0.0235
 
     start = time()
-    print(MC(params, S, strike, tau, r), f' in {time() - start} seconds')
+    # print(MC(params, S), f' in {time() - start} seconds')
+    S_t, V_t = MC(params, S)
+
+    import matplotlib.pyplot as plt
+    plt.plot(S_t)
+    plt.show()

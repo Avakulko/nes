@@ -1,19 +1,15 @@
-import matplotlib.pyplot as plt
-
-plt.style.use('ggplot')
 import numpy as np
 from scipy.stats import norm
 from scipy.special import factorial
 
 
-def merton_jump_paths(S, T, r, sigma, lam, m, v, steps, Npaths):
+def merton_jump_paths(params, S, r, steps=24*60, Npaths=1000):
+    sigma, m, v, lam = params
     size = (steps, Npaths)
-    dt = T / steps
+    dt = 1 / 365 / 24 / 60
     poi_rv = np.multiply(np.random.poisson(lam * dt, size=size),
                          np.random.normal(m, v, size=size)).cumsum(axis=0)
-    geo = np.cumsum(((r - sigma ** 2 / 2 - lam * (m + v ** 2 * 0.5)) * dt + \
-                     sigma * np.sqrt(dt) * \
-                     np.random.normal(size=size)), axis=0)
+    geo = np.cumsum(((r - sigma ** 2 / 2 - lam * (m + v ** 2 * 0.5)) * dt + sigma * np.sqrt(dt) * np.random.normal(size=size)), axis=0)
 
     return np.exp(geo + poi_rv) * S
 
@@ -40,17 +36,6 @@ def merton_jump_call(params, S, K, T, r):
     sigma_k = np.sqrt(sigma ** 2 + (k * v ** 2) / T)
     pv = np.sum(np.exp(-m * lam * T) * (m * lam * T) ** k / factorial(k) * BS_CALL(S, K, T, r_k, sigma_k), axis=0)
     return pv
-
-
-def merton_jump_put(S, K, T, r, sigma, m, v, lam):
-    p = 0  # price of option
-    for k in range(40):
-        r_k = r - lam * (m - 1) + (k * np.log(m)) / T
-        sigma_k = np.sqrt(sigma ** 2 + (k * v ** 2) / T)
-        k_fact = np.math.factorial(k)  #
-        p += (np.exp(-m * lam * T) * (m * lam * T) ** k / (k_fact)) \
-             * BS_PUT(S, K, T, r_k, sigma_k)
-    return p
 
 
 if __name__ == '__main__':

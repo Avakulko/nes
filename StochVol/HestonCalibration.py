@@ -2,25 +2,24 @@ import time
 import numpy as np
 import pandas as pd
 from forecasting_metrics import mape
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, minimize, NonlinearConstraint
 from StochVol.Heston import C_Heston, fHes, JacHes
 
 
-def write_log(res):
-    fun = res.fun
-    if (type(fun) != float) and (len(fun) != 1):
-        fun = sum(fun)
-    summary = {'fun': fun,
-               'feller': feller(res.x),
-               'params': [res.x],
+def write_log(res, C_market, data, t):
+    summary = {'t': pd.to_datetime(t).date(),
+               'mape': mape(C_market, data['fHes_opt']),
+               'sigma_0': res.x[0],
+               'k': res.x[1],
+               'theta': res.x[2],
+               'nu': res.x[3],
+               'rho': res.x[4],
                'success': res.success,
-               # 't': pd.to_datetime(t).date(),
-               # 'weights': weights,
-               # 'message': res.message
+               'feller': feller(res.x)
                }
     # feller
     with open('Out/log_Heston.csv', 'a') as f:
-        pd.DataFrame(summary).to_csv(f, header=f.tell() == 0, index=False)
+        pd.DataFrame(summary, index=[0]).to_csv(f, header=f.tell() == 0, index=False)
 
 
 def feller(params):
@@ -40,7 +39,11 @@ def residuals(params, index_price, strike, tt, irate, C_market, weights):
     return fHes(params, index_price, strike, tt, irate) - C_market
 
 
-def calibrate_Heston(data, weights):
+def obj_fun(params, index_price, strike, tt, irate, C_market, weights):
+    return np.sum((fHes(params, index_price, strike, tt, irate) - C_market) ** 2)
+
+
+def calibrate_Heston(data, t, weights):
     index_price = np.array(data['index_price'])
     strike = np.array(data['strike'])
     tt = np.array(data['tt'])
@@ -50,30 +53,47 @@ def calibrate_Heston(data, weights):
 
     start = time.time()
 
-    cost_min = np.inf
-    for _ in range(1):
-        sigma_00, k0, theta0, nu0 = np.random.uniform(0.0, 5.0, size=4)
+    # cost_min = np.inf
+    # for _ in range(1):
+    #     sigma_00, k0, theta0, nu0 = np.random.uniform(0.0, 5.0, size=4)
+    #     rho0 = np.random.uniform(-1.0, 1.0)
+    #     x0 = np.array([sigma_00, k0, theta0, nu0, rho0])
+    #     print(f'{x0=}')
+    #     res = least_squares(fun=residuals,
+    #                         jac=JacHes,
+    #                         # bounds=[(0.0, 0.0, 0.0, 0.0, -1.0), (10.0, 10.0, 10.0, 10.0, 1.0)],
+    #                         x0=x0,
+    #                         args=args,
+    #                         verbose=2,
+    #                         method='lm')
+    #     if res.cost < cost_min:
+    #         res_opt = res
+    #         cost_min = res_opt.cost
+
+    constraint = NonlinearConstraint(feller, 1e-2, np.inf)
+    min_fun = np.inf
+    for _ in range(10):
+        sigma_00, k0, theta0, nu0 = np.random.uniform(1e-2, 5.0, size=4)
         rho0 = np.random.uniform(-1.0, 1.0)
         x0 = np.array([sigma_00, k0, theta0, nu0, rho0])
-        # x0 = np.repeat(0.99, 5)
-        print(f'{x0=}')
-        res = least_squares(fun=residuals,
-                            jac=JacHes,
-                            # bounds=[(0.0, 0.0, 0.0, 0.0, -1.0), (10.0, 10.0, 10.0, 10.0, 1.0)],
-                            x0=x0,
-                            args=args,
-                            verbose=2,
-                            method='lm')
-        if res.cost < cost_min:
+        print(x0)
+        res = minimize(fun=obj_fun,
+                       x0=x0,
+                       args=args,
+                       bounds=[(1e-2, None), (1e-2, None), (1e-2, None), (1e-2, None), (-1.0, 1.0)],
+                       constraints=constraint,
+                       options={'disp': False})
+        if res.fun < min_fun:
+            min_fun = res.fun
             res_opt = res
-            cost_min = res_opt.cost
-
-    print('OPTIMAL ', feller(res_opt.x), res_opt.x)
-    print(f'Calibration finished in {time.time() - start} seconds')
 
     data['fHes_opt'] = fHes(res_opt.x, index_price, strike, tt, irate)
-    # data['C_Heston_opt'] = C_Heston(res_opt.x, index_price, strike, tt, irate)
-    write_log(res_opt)
+
+    # print('OPTIMAL ', feller(res_opt.x), res_opt.x)
+    print(f"t={pd.to_datetime(t).date()} mape = {mape(C_market, data['fHes_opt'])}")
+    # print(f'Calibration finished in {time.time() - start} seconds')
+
+    write_log(res_opt, C_market, data, t)
 
     return res_opt
 

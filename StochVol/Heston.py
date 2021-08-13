@@ -180,6 +180,7 @@ def fHes(p, S, K, T, r):
 
 
 def JacHes(params, S, K, T, r, *args):
+
     # return integrands(real - valued) for Jacobian
     def HesIntJac(u):
         PQ_M = P + Q * u
@@ -528,13 +529,13 @@ if __name__ == '__main__':
     # print(f'JacHes = {JacHes(params, S, strike, tau, r)} time: {time() - start}')
 
     # 3
-    from scipy.optimize import check_grad
-
-    S, strike, tau, r = np.array(4299.68), np.array(5750), np.array(0.0201548679921377), np.array(0.0235)
-    for _ in range(100):
-        sigma_00, k0, theta0, nu0 = np.random.uniform(0.0, 500.0, size=4)
-        rho0 = np.random.uniform(-1.0, 1.0)
-        x0 = np.array([sigma_00, k0, theta0, nu0, rho0])
-        print(check_grad(fHes, JacHes, x0, S, strike, tau, r))
+    # from scipy.optimize import check_grad
+    #
+    # S, strike, tau, r = np.array(4299.68), np.array(5750), np.array(0.0201548679921377), np.array(0.0235)
+    # for _ in range(100):
+    #     sigma_00, k0, theta0, nu0 = np.random.uniform(0.0, 500.0, size=4)
+    #     rho0 = np.random.uniform(-1.0, 1.0)
+    #     x0 = np.array([sigma_00, k0, theta0, nu0, rho0])
+    #     print(check_grad(fHes, JacHes, x0, S, strike, tau, r))
 
     pass
